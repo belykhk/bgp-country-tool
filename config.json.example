@@ -1,0 +1,9 @@
+{
+    "Sources": [
+        "http://www.iwik.org/ipcountry/RU.cidr",
+        "http://www.iwik.org/ipcountry/RU.ipv6"
+    ],
+    "EnableIPv6" : false,
+    "EnableIPv4" : true,
+    "OutputFile" : "/etc/bird/list.txt"
+}
