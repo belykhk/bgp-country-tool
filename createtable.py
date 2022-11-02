@@ -13,8 +13,9 @@ import time
 import os
 import json
 import sys
-import requests
+import urllib.request
 import ipaddress
+import math
 
 
 start       = time.time()
@@ -68,45 +69,55 @@ def main():
         sys.exit('Configuration file not found, exiting')
 
     logging.info('Current configuration:')
-    sources = config['Sources']
-    logging.info('  Sources: {}'.format(sources))
-    EnableIPv4 = bool(config['EnableIPv4'])
-    logging.info('  Enable IPv4: {}'.format(EnableIPv4))
-    EnableIPv6 = bool(config['EnableIPv6'])
-    logging.info('  Enable IPv6: {}'.format(EnableIPv6))
-    OutputFile = config['OutputFile']
-    logging.info('  Output file: {}'.format(OutputFile))
+    logging.info('  Sources: {}'.format(config['Sources']))
+    logging.info('  Enable IPv4: {}'.format(bool(config['EnableIPv4'])))
+    logging.info('  Enable IPv6: {}'.format(bool(config['EnableIPv6'])))
+    logging.info('  Output file: {}'.format(config['OutputFile']))
 
     report = list()
 
-    for s in sources:
-        logging.info('Retreiwing data from {}'.format(s))
-        r = requests.get(s)
-        if r.status_code != 200:
-            logging.error('Can\'t download page {}: {}'.format(
-                s,
-                r.reason
-            ))
-            break
-        logging.info(' Saving data from source')
-        for line in r.text.splitlines():
-            if '#' in line:
-                # Ommiting line with comments, for example:
-                # "# Generated 2022-10-29 12:02:05.804401"
-                pass
-            else:
-                if type(ipaddress.ip_network(line, strict=False)) is ipaddress.IPv4Network and not EnableIPv4:
-                    break
-                elif type(ipaddress.ip_network(line, strict=False)) is ipaddress.IPv6Network and not EnableIPv6:
-                    break
-                else:
-                    network = str(ipaddress.ip_network(line, strict=False))
-                    if network not in report:
-                        report.append(network)
+    for s in config['Sources']:
+        logging.info('Retreiwing data from {}'.format(s['Name']))
+        with urllib.request.urlopen(s['Address']) as f:
+            for line in f.read().decode('utf-8').splitlines():
+                l = line.split('|')
+                try:
+                    if l[1] in config['Countries']:
+                        if l[2] == 'ipv4' and bool(config['EnableIPv4']) == True:
+                            network = str(
+                                ipaddress.ip_network(
+                                    str(
+                                        '{}/{}'.format(
+                                            l[3],
+                                            str(
+                                                int(32-math.log(int(l[4]),2))
+                                            )
+                                        )
+                                    ), strict=False
+                                )
+                            )
+                            if network not in report:
+                                report.append(network)
+                        if l[2] == 'ipv6' and bool(config['EnableIPv6']) == True:
+                            network = str(
+                                ipaddress.ip_network(
+                                    str(
+                                        '{}/{}'.format(
+                                            l[3],
+                                            l[4]
+                                        )
+                                    ), strict=False
+                                )
+                            )
+                            if network not in report:
+                                report.append(network)
+                except IndexError:
+                    # Sometimes lines do not have separators 
+                    pass
     logging.info('Report generation complete')
 
-    logging.info('Saving report to {}'.format(OutputFile))
-    with open(OutputFile, 'w') as file:
+    logging.info('Saving report to {}'.format(config['OutputFile']))
+    with open(config['OutputFile'], 'w') as file:
         for line in report:
             file.write('route {} reject;\n'.format(line))
         file.close
