@@ -3,7 +3,10 @@ This tool is designed to create list of networks to be distributed with [bird](h
 
 Reasoning behind this tool — i need to access a lot of services in Russia, but while i'm not in country - a lot of services blocks access to them. Using this tool and data from network registers (RIPE, ARIN, AfriNIC, APNIC, LACNIC) i'm able to distribute most of Russia's public IP ranges to be routed trough VPN connetion with use of my home router and some cheapo VPS server in Russia.
 
-Tool uses standart library in python3, so all you need is Python3 and Bird installed.
+Tool uses `netaadr` library in python3 (for summarizing adjasent networks, eg 10.0.0.0/24 + 10.0.1.0/24 = 10.0.0.0/23), so aside of Python3 and Bird installed you also need to run:
+````
+python3 -m pip install netaddr
+````
 
 ## Usage
 
