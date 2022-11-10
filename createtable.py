@@ -8,6 +8,7 @@ generate configuration file for bind to distribute as BGP table
 """
 
 from optparse import OptionParser
+from netaddr import IPNetwork, cidr_merge
 import logging
 import time
 import os
@@ -16,7 +17,6 @@ import sys
 import urllib.request
 import ipaddress
 import math
-
 
 start       = time.time()
 logger      = logging.getLogger()
@@ -109,17 +109,20 @@ def main():
                                     ), strict=False
                                 )
                             )
-                            if network not in report:
-                                report.append(network)
+                            if IPNetwork(addr=network) not in report:
+                                report.append(IPNetwork(addr=network))
                 except IndexError:
                     # Sometimes lines do not have separators 
                     pass
     logging.info('Report generation complete')
 
+    logging.info('Summarizing networks')
+    output = cidr_merge(report)
+
     logging.info('Saving report to {}'.format(config['OutputFile']))
     with open(config['OutputFile'], 'w') as file:
-        for line in report:
-            file.write('route {} reject;\n'.format(line))
+        for line in output:
+            file.write('route {} reject;\n'.format(str(line)))
         file.close
 
     logging.info('Script finished. Runtime: {} seconds.'.format(
