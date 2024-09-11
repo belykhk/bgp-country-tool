@@ -30,16 +30,16 @@ add chain=static_bgp disabled=no rule="set gw-interface l2tp_russia; set distanc
 ## Configuration file parameters
 
  1. `Sources` - list of sources to get data from. You probably want to use all of them.
- 2. `Countries` - list of countries to get data for. Possbile values are listed in section `List of possible country codes` of this document. Example: `"Countries": ["RU", "UA", "BY", "KZ"]`
- 3. `EnableIPv4` - enable or disable gathering IPv4 data. Possible values: `true` or `false`
-    3.1. `AppendIPv4` - list of additional IPv4 networks to append to list. Example: `"AppendIPv4": ["192.168.0.0/24", "192.168.1.0/24"]`
-    3.2. `ExcludeIPv4` - same as Append, but exclude
-    3.3. `OutputFileipv4` - path to file where to save IPv4 networks. Example: `"/etc/bird/list.txt"`
- 4. `EnableIPv6` - enable or disable gathering IPv6 data. Possible values: `true` or `false`
-    4.1. `AppendIPv6` - list of additional IPv6 networks to append to list. Example: `"AppendIPv6": ["2001:db8::/32", "2001:db8:1::/48"]`
-    4.2. `ExcludeIPv4` - same as Append, but exclude
-    4.3. `OutputFileipv6` - path to file where to save IPv6 networks. Example: `"/etc/bird/list6.txt"`
- 5. `OutputFormat` - format of line in output. Example: `"route {0} reject;"`, where `{0}` is replaced with network.
+ 1. `Countries` - list of countries to get data for. Possbile values are listed in section `List of possible country codes` of this document. Example: `"Countries": ["RU", "UA", "BY", "KZ"]`
+ 1. `EnableIPv4` - enable or disable gathering IPv4 data. Possible values: `true` or `false`
+    1. `AppendIPv4` - list of additional IPv4 networks to append to list. Example: `"AppendIPv4": ["192.168.0.0/24", "192.168.1.0/24"]`  
+    1. `ExcludeIPv4` - same as Append, but exclude  
+    1. `OutputFileipv4` - path to file where to save IPv4 networks. Example: `"/etc/bird/list.txt"`  
+ 1. `EnableIPv6` - enable or disable gathering IPv6 data. Possible values: `true` or `false`
+    1. `AppendIPv6` - list of additional IPv6 networks to append to list. Example: `"AppendIPv6": ["2001:db8::/32", "2001:db8:1::/48"]`  
+    1. `ExcludeIPv4` - same as Append, but exclude  
+    1. `OutputFileipv6` - path to file where to save IPv6 networks. Example: `"/etc/bird/list6.txt"`  
+ 1. `OutputFormat` - format of line in output. Example: `"route {0} reject;"`, where `{0}` is replaced with network.
 
 ## List of possible country codes
 
