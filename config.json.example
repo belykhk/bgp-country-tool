@@ -26,12 +26,11 @@
     ],
     "EnableIPv4" : true,
     "AppendIPv4" : [],
+    "ExcludeIPv4" : [],
     "OutputFileipv4" : "/etc/bird/list.txt",
     "EnableIPv6" : false,
     "AppendIPv6" : [],
+    "ExcludeIPv6" : [],
     "OutputFileipv6" : "/etc/bird/list6.txt",
-    "SummarizeNetworks" : true,
-    "SummarizeOutput" : false,
-    "SummarizeOutputFile" : "/etc/bird/listall.txt",
     "OutputFormat" : "route {0} reject;"
 }
