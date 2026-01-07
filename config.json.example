@@ -2,23 +2,23 @@
     "Sources": [
         {
             "Name" : "RIPE",
-            "Address" : "ftp://ftp.ripe.net/ripe/stats/delegated-ripencc-latest"
+            "Address" : "https://ftp.ripe.net/pub/stats/ripencc/delegated-ripencc-latest"
         },
         {
             "Name" : "ARIN",
-            "Address" : "ftp://ftp.arin.net/pub/stats/arin/delegated-arin-extended-latest"
+            "Address" : "https://ftp.arin.net/pub/stats/arin/delegated-arin-extended-latest"
         },
         {
             "Name" : "AfriNIC",
-            "Address" : "ftp://ftp.afrinic.net/pub/stats/afrinic/delegated-afrinic-latest"
+            "Address" : "https://ftp.afrinic.net/pub/stats/afrinic/delegated-afrinic-latest"
         },
         {
             "Name" : "APNIC",
-            "Address" : "ftp://ftp.apnic.net/pub/stats/apnic/delegated-apnic-latest"
+            "Address" : "https://ftp.apnic.net/stats/apnic/delegated-apnic-latest"
         },
         {
             "Name" : "LACNIC",
-            "Address" : "ftp://ftp.lacnic.net/pub/stats/lacnic/delegated-lacnic-latest"
+            "Address" : "https://ftp.lacnic.net/pub/stats/lacnic/delegated-lacnic-latest"
         }
     ],
     "Countries"  : [
