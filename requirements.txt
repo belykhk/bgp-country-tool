@@ -1,0 +1,4 @@
+netaddr
+python-dotenv
+requests
+routeros-api

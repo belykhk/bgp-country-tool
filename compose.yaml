@@ -1,0 +1,27 @@
+name: bgp-generator
+
+services:
+  bgp-generator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: generator
+      tags:
+        - bgp-generator:latest
+    container_name: bgp-generator
+    environment:
+      - SOURCESURLS
+      - COUNTRIES
+      - ENABLEIPV4
+      - APPENDIPV4
+      - EXCLUDEIPV4
+      - ENABLEIPV6
+      - APPENDIPV6
+      - EXCLUDEIPV6
+      - ROUTEROSHOST
+      - ROUTEROSUSER
+      - ROUTEROSPASSWORD
+      - ROUTEROSADDRESSLIST
+      - ROUTEROSAPIUSESSL
+      - ROUTEROSWORKERS
+

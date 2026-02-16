@@ -1,49 +1,101 @@
-# Tool to create list of ip networks to work with bird
-This tool is designed to create list of networks to be distributed with [bird](https://bird.network.cz/) ver 1.x.
+# BGP Country Tool (RouterOS address-list generator)
 
-Reasoning behind this tool — i need to access a lot of services in Russia, but while i'm not in country - a lot of services blocks access to them. Using this tool and data from network registers (RIPE, ARIN, AfriNIC, APNIC, LACNIC) i'm able to distribute most of Russia's public IP ranges to be routed trough VPN connetion with use of my home router and some cheapo VPS server in Russia.
+This project builds country-based IPv4/IPv6 prefix lists from RIR delegated files and syncs them into a MikroTik RouterOS firewall address-list.
 
-Tool uses `netaadr` library for summarizing adjasent networks, so aside of Python3 and Bird installed you also need to run:
-````
-python3 -m pip install netaddr
-````
+Data sources supported:
+- RIPE
+- ARIN
+- AfriNIC
+- APNIC
+- LACNIC
 
-## Usage
+Tools itself created with docker in mind, so it can be run on MikroTik itself via containers.
 
- 1. Create configuration file named `config.json` and fill it based on `config.json.example`. For additional information about config see below.
- 2. Install bird and configure `bird.conf` based on `bird.conf.example` (additional information about confuration parameters is below)
- 3. Install some VPN software on VPN and configure client on your router. For example you can see https://github.com/hwdsl2/setup-ipsec-vpn or https://github.com/angristan/wireguard-install
- 4. Configure BGP on your client based on your `bird.conf`
- My example on Mikrotik RouterOS 7:
-````
-/routing bgp connection
-add as=64666 disabled=no input.filter=static_bgp .ignore-as-path-len=yes local.role=ibgp name=Russia remote.address=192.168.42.1/32 .as=\
-    64666 router-id=192.168.42.10 routing-table=main templates=default
-/routing filter rule
-add chain=static_bgp disabled=no rule="set gw-interface l2tp_russia; set distance 15; accept"
-````
- 5. Create cron job for recreating tabled of remote networks:
-````
-0 6 15 * * python3 /root/bgp/createtable.py && /usr/sbin/birdc configure
-````
+## What the script does
 
-## Configuration file parameters
+`generator.py`:
+1. Downloads delegated stats files from `SOURCESURLS`
+2. Filters records by selected `COUNTRIES`
+3. Builds IPv4/IPv6 prefix sets
+4. Applies `EXCLUDE*` / `APPEND*` overrides
+5. Connects to RouterOS API
+6. Replaces the target address-list contents with the generated set
 
- 1. `Sources` - list of sources to get data from. You probably want to use all of them.
- 1. `Countries` - list of countries to get data for. Possbile values are listed in section `List of possible country codes` of this document. Example: `"Countries": ["RU", "UA", "BY", "KZ"]`
- 1. `EnableIPv4` - enable or disable gathering IPv4 data. Possible values: `true` or `false`
-    1. `AppendIPv4` - list of additional IPv4 networks to append to list. Example: `"AppendIPv4": ["192.168.0.0/24", "192.168.1.0/24"]`  
-    1. `ExcludeIPv4` - same as Append, but exclude  
-    1. `OutputFileipv4` - path to file where to save IPv4 networks. Example: `"/etc/bird/list.txt"`  
- 1. `EnableIPv6` - enable or disable gathering IPv6 data. Possible values: `true` or `false`
-    1. `AppendIPv6` - list of additional IPv6 networks to append to list. Example: `"AppendIPv6": ["2001:db8::/32", "2001:db8:1::/48"]`  
-    1. `ExcludeIPv4` - same as Append, but exclude  
-    1. `OutputFileipv6` - path to file where to save IPv6 networks. Example: `"/etc/bird/list6.txt"`  
- 1. `OutputFormat` - format of line in output. Example: `"route {0} reject;"`, where `{0}` is replaced with network.
+Address-list operations are concurrent (`ThreadPoolExecutor`) and tuned by `ROUTEROSWORKERS`.
+
+## Requirements
+
+- Docker + Docker Compose **or** Python 3.12+
+- RouterOS API access to your router
+
+Python dependencies (see `requirements.txt`):
+- `netaddr`
+- `python-dotenv`
+- `routeros-api`
+- `requests`
+
+## Configuration
+
+Copy `.env.ref` to `.env` and edit values:
+
+```bash
+cp .env.ref .env
+```
+
+Windows PowerShell:
+
+```powershell
+Copy-Item .env.ref .env
+```
+
+### Environment variables
+
+- `SOURCESURLS`: JSON array of source objects (`Name`, `Address`)
+- `COUNTRIES`: JSON array of country codes, e.g. `["RU"]`. See below for all possible country codes.
+- `ENABLEIPV4`: `True` / `False`
+- `APPENDIPV4`: JSON array of prefixes to force-add
+- `EXCLUDEIPV4`: JSON array of prefixes to remove
+- `ENABLEIPV6`: `True` / `False`
+- `APPENDIPV6`: JSON array of prefixes to force-add
+- `EXCLUDEIPV6`: JSON array of prefixes to remove
+- `ROUTEROSHOST`: RouterOS hostname/IP
+- `ROUTEROSUSER`: RouterOS API user
+- `ROUTEROSPASSWORD`: RouterOS API password
+- `ROUTEROSADDRESSLIST`: destination address-list name
+- `ROUTEROSAPIUSESSL`: `True` / `False` (TLS for API)
+- `ROUTEROSWORKERS`: number of concurrent RouterOS workers (default `8`)
+
+## Run with Docker Compose
+
+Build and run:
+
+```bash
+docker compose up --build
+```
+
+Current `compose.yaml` passes these env vars into the container:
+- `SOURCESURLS`, `COUNTRIES`
+- `ENABLEIPV4`, `APPENDIPV4`, `EXCLUDEIPV4`
+- `ENABLEIPV6`, `APPENDIPV6`, `EXCLUDEIPV6`
+- `ROUTEROSHOST`, `ROUTEROSUSER`, `ROUTEROSPASSWORD`, `ROUTEROSADDRESSLIST`, `ROUTEROSAPIUSESSL`, `ROUTEROSWORKERS`
+
+## Run locally (without Docker)
+
+```bash
+python -m pip install -r requirements.txt
+python generator.py
+```
+
+## Notes
+
+- JSON values in `.env` must be valid JSON (double quotes, brackets, etc.).
+- Very high `ROUTEROSWORKERS` values can overload RouterOS API; start with `2-8`.
+- The tool currently performs a full replace of the target address-list each run.
+- For old version of tool, please see [this](https://github.com/belykhk/bgp-country-tool/tree/15980294da2543f05a2e4c94fc0abb893a2e6d57) commit
 
 ## List of possible country codes
 
-Below is list of contry codes that can be used in `Countries` section of `config.json`:
+Below is list of contry codes that can be used in configuration:
 ```
 "AD", "AE", "AF", "AG", "AI", "AL", "AM", "AO", "AP", "AQ", "AR", "AS", "AT", "AU", "AW", "AX", "AZ",
 "BA", "BB", "BD", "BE", "BF", "BG", "BH", "BI", "BJ", "BL", "BM", "BN", "BO", "BQ", "BR", "BS", "BT", "BW", "BY", "BZ",
