@@ -1,3 +1,5 @@
 .vscode
 .env
+output
 bgp-generator.tar
+bird.tar

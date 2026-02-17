@@ -1,0 +1,36 @@
+router id 10.250.10.1;
+
+protocol kernel {
+    ipv4 {
+        import none;
+        export none;
+    };
+}
+
+protocol device {
+    scan time 60;
+}
+
+protocol static static_bgp {
+    ipv4;
+    include "/mount/output_ipv4.txt";
+}
+
+filter export_static_bgp {
+    if proto = "static_bgp" then {
+        accept;
+    }
+    reject;
+}
+
+protocol bgp RussiaHomeRouter {
+    description "Distribute Russia IP subnets to my Home Router";
+    local as 65102;
+    neighbor 10.250.10.2 as 65102;
+
+    ipv4 {
+        import none;
+        export filter export_static_bgp;
+        next hop self;
+    };
+}

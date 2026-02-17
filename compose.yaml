@@ -9,19 +9,31 @@ services:
       tags:
         - bgp-generator:latest
     container_name: bgp-generator
+    volumes:
+      - ./output:/mount
     environment:
       - SOURCESURLS
       - COUNTRIES
       - ENABLEIPV4
       - APPENDIPV4
       - EXCLUDEIPV4
+      - OUTPUTFILEIPV4
       - ENABLEIPV6
       - APPENDIPV6
       - EXCLUDEIPV6
-      - ROUTEROSHOST
-      - ROUTEROSUSER
-      - ROUTEROSPASSWORD
-      - ROUTEROSADDRESSLIST
-      - ROUTEROSAPIUSESSL
-      - ROUTEROSWORKERS
+      - OUTPUTFILEIPV6
+      - OUTPUTFORMAT
 
+  bird:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: bird
+      tags:
+        - bird:latest
+    container_name: bird
+    ports:
+      - "179:179/tcp"
+    volumes:
+      - ./output:/mount
+    command: ["bird", "-c", "/mount/bird.conf", "-d"]

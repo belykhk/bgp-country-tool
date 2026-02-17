@@ -1,37 +1,34 @@
-# BGP Country Tool (RouterOS address-list generator)
+# BGP Country Tool (BIRD route generator)
 
-This project builds country-based IPv4/IPv6 prefix lists from RIR delegated files and syncs them into a MikroTik RouterOS firewall address-list.
+This project builds country-based IPv4/IPv6 prefix sets from delegated RIR files and writes them in BIRD static route format.
 
-Data sources supported:
+Supported registry sources:
 - RIPE
 - ARIN
 - AfriNIC
 - APNIC
 - LACNIC
 
-Tools itself created with docker in mind, so it can be run on MikroTik itself via containers.
+The repository includes:
+- a Python generator container (`bgp-generator`)
+- a BIRD container (`bird`)
+- an `output/` mount shared by both
 
-## What the script does
+## What it does
 
-`generator.py`:
-1. Downloads delegated stats files from `SOURCESURLS`
-2. Filters records by selected `COUNTRIES`
-3. Builds IPv4/IPv6 prefix sets
-4. Applies `EXCLUDE*` / `APPEND*` overrides
-5. Connects to RouterOS API
-6. Replaces the target address-list contents with the generated set
-
-Address-list operations are concurrent (`ThreadPoolExecutor`) and tuned by `ROUTEROSWORKERS`.
+1. Generates route files (`output_ipv4.txt` / `output_ipv6.txt`) from selected countries
+2. Lets BIRD include those files and advertise them over BGP
+3. Uses `bird-entrypoint.sh` to monitor config/output changes and reload BIRD
 
 ## Requirements
 
-- Docker + Docker Compose **or** Python 3.12+
-- RouterOS API access to your router
+- Docker and Docker Compose
+- Or Python 3.12+ for local generator-only runs
+- A working BIRD config (`bird.conf`) mounted at `/mount/bird.conf`
 
 Python dependencies (see `requirements.txt`):
 - `netaddr`
 - `python-dotenv`
-- `routeros-api`
 - `requests`
 
 ## Configuration
@@ -51,51 +48,69 @@ Copy-Item .env.ref .env
 ### Environment variables
 
 - `SOURCESURLS`: JSON array of source objects (`Name`, `Address`)
-- `COUNTRIES`: JSON array of country codes, e.g. `["RU"]`. See below for all possible country codes.
+- `COUNTRIES`: JSON array of country codes, e.g. `["RU"]` (full list below)
 - `ENABLEIPV4`: `True` / `False`
 - `APPENDIPV4`: JSON array of prefixes to force-add
 - `EXCLUDEIPV4`: JSON array of prefixes to remove
+- `OUTPUTFILEIPV4`: path inside container (default: `/mount/output_ipv4.txt`)
 - `ENABLEIPV6`: `True` / `False`
 - `APPENDIPV6`: JSON array of prefixes to force-add
 - `EXCLUDEIPV6`: JSON array of prefixes to remove
-- `ROUTEROSHOST`: RouterOS hostname/IP
-- `ROUTEROSUSER`: RouterOS API user
-- `ROUTEROSPASSWORD`: RouterOS API password
-- `ROUTEROSADDRESSLIST`: destination address-list name
-- `ROUTEROSAPIUSESSL`: `True` / `False` (TLS for API)
-- `ROUTEROSWORKERS`: number of concurrent RouterOS workers (default `8`)
+- `OUTPUTFILEIPV6`: path inside container (default: `/mount/output_ipv6.txt`)
+- `OUTPUTFORMAT`: output line template, e.g. `route {0} reject;`
+
+## Files in `output/`
+
+The compose setup mounts `./output` to `/mount` in both containers.
+
+Expected files:
+- `output/output_ipv4.txt` (generated when IPv4 enabled)
+- `output/output_ipv6.txt` (generated when IPv6 enabled)
+- `output/bird.conf` (you provide this, based on `bird.conf.example`)
+
+Quick setup:
+
+```powershell
+Copy-Item bird.conf.example output/bird.conf
+```
 
 ## Run with Docker Compose
 
-Build and run:
+Generate prefix files:
+
+```bash
+docker compose up --build bgp-generator
+```
+
+Start BIRD:
+
+```bash
+docker compose up --build bird
+```
+
+Run both services:
 
 ```bash
 docker compose up --build
 ```
 
-Current `compose.yaml` passes these env vars into the container:
-- `SOURCESURLS`, `COUNTRIES`
-- `ENABLEIPV4`, `APPENDIPV4`, `EXCLUDEIPV4`
-- `ENABLEIPV6`, `APPENDIPV6`, `EXCLUDEIPV6`
-- `ROUTEROSHOST`, `ROUTEROSUSER`, `ROUTEROSPASSWORD`, `ROUTEROSADDRESSLIST`, `ROUTEROSAPIUSESSL`, `ROUTEROSWORKERS`
-
-## Run locally (without Docker)
+## Run generator locally (without Docker)
 
 ```bash
 python -m pip install -r requirements.txt
 python generator.py
 ```
 
-## Notes
+## Troubleshooting
 
-- JSON values in `.env` must be valid JSON (double quotes, brackets, etc.).
-- Very high `ROUTEROSWORKERS` values can overload RouterOS API; start with `2-8`.
-- The tool currently performs a full replace of the target address-list each run.
-- For old version of tool, please see [this](https://github.com/belykhk/bgp-country-tool/tree/15980294da2543f05a2e4c94fc0abb893a2e6d57) commit
+- If `bird` exits on startup, verify `output/bird.conf` exists and has valid syntax.
+- Run `docker compose up bgp-generator` first to ensure output files exist.
+- JSON values in `.env` must be valid JSON (double quotes and brackets).
+- If BIRD is already installed on host and port `179` is in use, remove `179:179` mapping or stop host BIRD.
 
 ## List of possible country codes
 
-Below is list of contry codes that can be used in configuration:
+Below is list of country codes that can be used in configuration:
 ```
 "AD", "AE", "AF", "AG", "AI", "AL", "AM", "AO", "AP", "AQ", "AR", "AS", "AT", "AU", "AW", "AX", "AZ",
 "BA", "BB", "BD", "BE", "BF", "BG", "BH", "BI", "BJ", "BL", "BM", "BN", "BO", "BQ", "BR", "BS", "BT", "BW", "BY", "BZ",
@@ -122,4 +137,18 @@ Below is list of contry codes that can be used in configuration:
 "WF", "WS",
 "YE", "YT",
 "ZA", "ZM", "ZW"
+```
+
+## Example of RouterOS 7 client configuration to connect to Bird
+
+```
+/routing bgp instance
+add as=65102 disabled=no name=bgp-ru
+/routing bgp template
+add as=65102 disabled=no name=ru
+/routing bgp connection
+add as=65102 connect=yes disabled=no input.filter=static_bgp instance=bgp-ru keepalive-time=10s listen=no local.address=10.250.10.2 .role=\
+    ibgp name="Russia" remote.address=10.250.10.1/32 routing-table=main templates=ru
+/routing filter rule
+add chain=static_bgp disabled=no rule="set gw 10.250.10.1; set distance 15; accept"
 ```

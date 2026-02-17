@@ -16,11 +16,9 @@ import os
 import sys
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from ipaddress import ip_network
 
 import requests
-import routeros_api
 from dotenv import load_dotenv
 from netaddr import cidr_merge
 
@@ -37,17 +35,13 @@ SOURCE_CONFIG = {
     "exclude_ipv6": json.loads(os.getenv("EXCLUDEIPV6")),
 }
 
-ROUTEROS_CONFIG = {
-    "routeros_host": os.getenv("ROUTEROSHOST"),
-    "routeros_user": os.getenv("ROUTEROSUSER"),
-    "routeros_password": os.getenv("ROUTEROSPASSWORD"),
-    "routeros_address_list": os.getenv("ROUTEROSADDRESSLIST"),
-    "routeros_api_use_ssl": os.getenv("ROUTEROSAPIUSESSL") == "True",
-    "routeros_workers": int(os.getenv("ROUTEROSWORKERS", 8)),
+OUTPUT_CONFIG = {
+    "output_format": os.getenv("OUTPUTFORMAT"),
+    "output_file_ipv4": os.getenv("OUTPUTFILEIPV4"),
+    "output_file_ipv6": os.getenv("OUTPUTFILEIPV6"),
 }
 
 start = time.time()
-logger = logging.getLogger()
 
 logging.basicConfig(
     level=logging.INFO,
@@ -55,64 +49,6 @@ logging.basicConfig(
     handlers=[logging.StreamHandler()],
 )
 logger = logging.getLogger(__name__)
-
-_thread_local = threading.local()
-_worker_connections = []
-_worker_connections_lock = threading.Lock()
-
-
-def create_routeros_connection():
-    return routeros_api.RouterOsApiPool(
-        ROUTEROS_CONFIG["routeros_host"],
-        username=ROUTEROS_CONFIG["routeros_user"],
-        password=ROUTEROS_CONFIG["routeros_password"],
-        plaintext_login=True,
-        use_ssl=ROUTEROS_CONFIG["routeros_api_use_ssl"],
-    )
-
-
-def get_thread_api():
-    if not hasattr(_thread_local, "connection"):
-        connection = create_routeros_connection()
-        _thread_local.connection = connection
-        _thread_local.api = connection.get_api()
-        with _worker_connections_lock:
-            _worker_connections.append(connection)
-    return _thread_local.api
-
-
-def close_worker_connections():
-    with _worker_connections_lock:
-        connections = list(_worker_connections)
-        _worker_connections.clear()
-
-    for connection in connections:
-        try:
-            connection.disconnect()
-        except Exception:
-            pass
-
-
-def deleteaddresslist(id):
-    # Function to delete address list item by id
-    try:
-        api = get_thread_api()
-        api.get_resource("/ip/firewall/address-list").remove(id=id)
-        return True
-    except Exception as e:
-        logging.error(f"Unable to delete address list item with id {id}: {e}")
-        raise RuntimeError(f"Unable to delete address list item with id {id}: {e}") from e
-
-
-def addaddresslist(address, list_name):
-    # Function to add address list item
-    try:
-        api = get_thread_api()
-        api.get_resource("/ip/firewall/address-list").add(address=address, list=list_name)
-        return True
-    except Exception as e:
-        logging.error(f"Unable to add address list item with address {address}: {e}")
-        raise RuntimeError(f"Unable to add address list item with address {address}: {e}") from e
 
 
 def netmaskcidr(num_hosts):
@@ -166,6 +102,13 @@ def fetch_source_lines(source_name, source_address, retries=3, backoff_seconds=5
             time.sleep(backoff_seconds)
 
 
+def save_output(networks, output_file, output_format):
+    with open(output_file, "w") as f:
+        for network in networks:
+            f.write(output_format.format(network) + "\n")
+    logging.info(f"Output saved to {output_file}")
+
+
 def main():
     logging.info("**************")
     logging.info("Script started")
@@ -200,55 +143,10 @@ def main():
 
     if bool(SOURCE_CONFIG["enable_ipv4"]) == True:
         logging.info(f"IPv4 networks: {len(reportipv4)}")
+        save_output(reportipv4, OUTPUT_CONFIG["output_file_ipv4"], OUTPUT_CONFIG["output_format"])
     if bool(SOURCE_CONFIG["enable_ipv6"]) == True:
         logging.info(f"IPv6 networks: {len(reportipv6)}")
-
-    try:
-        connection = create_routeros_connection()
-        api = connection.get_api()
-        atexit.register(connection.disconnect)
-        atexit.register(close_worker_connections)
-        logging.info(f"Connected to RouterOS at {ROUTEROS_CONFIG['routeros_host']}")
-    except Exception as e:
-        logging.error(f"Unable to connect to RouterOS: {e}")
-        sys.exit(f"Unable to connect to RouterOS: {e}")
-
-    try:
-        address_list = api.get_resource("/ip/firewall/address-list")
-        current_list = address_list.get(list=ROUTEROS_CONFIG["routeros_address_list"])
-
-        # Delete old address list
-        if len(current_list) > 0:
-            logging.info(
-                f"Deleting old address list {ROUTEROS_CONFIG['routeros_address_list']} "
-                f"in RouterOS: {len(current_list)} items"
-            )
-            with ThreadPoolExecutor(max_workers=ROUTEROS_CONFIG["routeros_workers"]) as executor:
-                futures = [executor.submit(deleteaddresslist, item["id"]) for item in current_list]
-
-        # Create new address list
-        if bool(SOURCE_CONFIG["enable_ipv4"]) == True:
-            logging.info(
-                f"Adding {len(reportipv4)} IPv4 networks to address list {ROUTEROS_CONFIG['routeros_address_list']}"
-            )
-            with ThreadPoolExecutor(max_workers=ROUTEROS_CONFIG["routeros_workers"]) as executor:
-                futures = [
-                    executor.submit(addaddresslist, address, ROUTEROS_CONFIG["routeros_address_list"])
-                    for address in reportipv4
-                ]
-        if bool(SOURCE_CONFIG["enable_ipv6"]) == True:
-            logging.info(
-                f"Adding {len(reportipv6)} IPv6 networks to address list {ROUTEROS_CONFIG['routeros_address_list']}"
-            )
-            with ThreadPoolExecutor(max_workers=ROUTEROS_CONFIG["routeros_workers"]) as executor:
-                futures = [
-                    executor.submit(addaddresslist, address, ROUTEROS_CONFIG["routeros_address_list"])
-                    for address in reportipv6
-                ]
-
-    except Exception as e:
-        logging.error(f"Unable to retrieve address list from RouterOS: {e}")
-        sys.exit(f"Unable to retrieve address list from RouterOS: {e}")
+        save_output(reportipv6, OUTPUT_CONFIG["output_file_ipv6"], OUTPUT_CONFIG["output_format"])
 
     logging.info(f"Script finished. Runtime: {str(round(time.time() - start, 3))} seconds.")
     sys.exit(0)
