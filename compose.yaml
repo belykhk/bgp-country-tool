@@ -36,4 +36,3 @@ services:
       - "179:179/tcp"
     volumes:
       - ./output:/mount
-    command: ["bird", "-c", "/mount/bird.conf", "-d"]
