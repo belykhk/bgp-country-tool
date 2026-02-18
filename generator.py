@@ -8,14 +8,13 @@ generate configuration file for bind to distribute as BGP table. For additional
 information please refer to README.md file.
 """
 
-import atexit
 import json
 import logging
 import math
 import os
 import sys
-import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from ipaddress import ip_network
 
 import requests
@@ -84,7 +83,7 @@ def updatesubnet(networks, subnets_to_remove, subnets_to_add):
     return corrected_networks
 
 
-def fetch_source_lines(source_name, source_address, retries=3, backoff_seconds=5):
+def fetch_source_lines(source_name, source_address, retries=10, backoff_seconds=5):
     for attempt in range(1, retries + 1):
         try:
             response = requests.get(source_address)
@@ -114,12 +113,19 @@ def main():
     logging.info("Script started")
 
     data = {}
-    for s in SOURCE_CONFIG["source"]:
-        logging.info(f'Retreiwing data from {s["Name"]}')
-        try:
-            data[s["Name"]] = fetch_source_lines(s["Name"], s["Address"])
-        except RuntimeError as e:
-            sys.exit(str(e))
+    with ThreadPoolExecutor(max_workers=min(32, len(SOURCE_CONFIG["source"]) or 1)) as executor:
+        futures = {}
+        for s in SOURCE_CONFIG["source"]:
+            logging.info(f'Retreiwing data from {s["Name"]}')
+            future = executor.submit(fetch_source_lines, s["Name"], s["Address"])
+            futures[future] = s["Name"]
+
+        for future in as_completed(futures):
+            source_name = futures[future]
+            try:
+                data[source_name] = future.result()
+            except RuntimeError as e:
+                sys.exit(str(e))
 
     reportipv4 = set()
     reportipv6 = set()
