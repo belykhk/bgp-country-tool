@@ -145,10 +145,10 @@ Below is list of country codes that can be used in configuration:
 /routing bgp instance
 add as=65102 disabled=no name=bgp-ru
 /routing bgp template
-add as=65102 disabled=no name=ru
+add as=65102 disabled=no hold-time=3m input.filter=static_bgp keepalive-time=1m name=ru routing-table=main
 /routing bgp connection
-add as=65102 connect=yes disabled=no input.filter=static_bgp instance=bgp-ru keepalive-time=10s listen=no local.address=10.250.10.2 .role=\
-    ibgp name="Russia" remote.address=10.250.10.1/32 routing-table=main templates=ru
+add as=65102 connect=yes disabled=no hold-time=3m input.filter=static_bgp instance=bgp-ru keepalive-time=1m listen=no local.address=\
+    10.250.10.2 .role=ibgp name="Russia" remote.address=10.250.10.1/32 routing-table=main templates=ru
 /routing filter rule
 add chain=static_bgp disabled=no rule="set gw 10.250.10.1; set distance 15; accept"
 ```
