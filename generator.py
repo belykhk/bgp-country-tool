@@ -86,7 +86,7 @@ def updatesubnet(networks, subnets_to_remove, subnets_to_add):
 def fetch_source_lines(source_name, source_address, retries=10, backoff_seconds=5):
     for attempt in range(1, retries + 1):
         try:
-            response = requests.get(source_address)
+            response = requests.get(source_address, timeout=600)
             response.raise_for_status()
             return response.text.splitlines()
         except requests.RequestException as e:
